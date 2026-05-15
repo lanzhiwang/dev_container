@@ -3,7 +3,7 @@ FROM python:3.12.13
 ############################## tools
 RUN set -eux; \
 	apt-get update; \
-	apt-get install -y --no-install-recommends ca-certificates tree iputils-ping vim wget curl iproute2 iptables; \
+	apt-get install -y --no-install-recommends ca-certificates tree iputils-ping vim wget curl iproute2 iptables lsof; \
 	rm -rf /var/lib/apt/lists/*; \
 	echo "alias ll='ls -alFi --color=auto'" >> /etc/bash.bashrc
 ############################## tools
@@ -76,6 +76,8 @@ RUN set -ex \
 	# smoke test
 	&& yarn --version \
 	&& rm -rf /tmp/*
+
+RUN set -ex && npm install -g pnpm && pnpm --version && npm cache clean --force
 ############################## node
 
 ############################## kt-connect
