@@ -77,7 +77,7 @@ RUN set -ex \
 	&& yarn --version \
 	&& rm -rf /tmp/*
 
-RUN set -ex && npm install -g pnpm && pnpm --version && npm cache clean --force
+RUN set -ex && npm install -g pnpm@10 && pnpm --version && npm cache clean --force
 ############################## node
 
 ############################## kt-connect
