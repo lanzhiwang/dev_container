@@ -1,10 +1,12 @@
 FROM python:3.12.13
 
+############################## tools
 RUN set -eux; \
 	apt-get update; \
-	apt-get install -y --no-install-recommends tree iputils-ping vim wget curl; \
+	apt-get install -y --no-install-recommends ca-certificates tree iputils-ping vim wget curl iproute2 iptables; \
 	rm -rf /var/lib/apt/lists/*; \
 	echo "alias ll='ls -alFi --color=auto'" >> /etc/bash.bashrc
+############################## tools
 
 ############################## node
 ENV NODE_VERSION=24.15.0
@@ -75,3 +77,28 @@ RUN set -ex \
 	&& yarn --version \
 	&& rm -rf /tmp/*
 ############################## node
+
+############################## kt-connect
+ARG KTCTL_VERSION=0.3.7
+
+RUN set -eux \
+	&& OS=$(uname -s) \
+	&& RAW_ARCH=$(uname -m) \
+	&& case "${RAW_ARCH}" in \
+	x86_64) ARCH="x86_64" ;; \
+	aarch64) ARCH="arm_64" ;; \
+	i686 | i386) ARCH="i386" ;; \
+	*) echo "Unsupported architecture: ${RAW_ARCH}" && exit 1 ;; \
+	esac \
+	&& FILENAME="ktctl_${KTCTL_VERSION}_${OS}_${ARCH}.tar.gz" \
+	&& TEMP_DIR=$(mktemp -d) \
+	&& cd ${TEMP_DIR} \
+	&& curl -OL "https://github.com/alibaba/kt-connect/releases/download/v${KTCTL_VERSION}/${FILENAME}" \
+	&& curl -OL "https://github.com/alibaba/kt-connect/releases/download/v${KTCTL_VERSION}/v${KTCTL_VERSION}_checksums.txt" \
+	&& grep "${FILENAME}" v${KTCTL_VERSION}_checksums.txt | sha256sum -c - \
+	&& tar zxf "${FILENAME}" \
+	&& mv ktctl /usr/local/bin/ktctl \
+	&& cd / \
+	&& rm -rf ${TEMP_DIR} \
+	&& ktctl --version
+############################## kt-connect
