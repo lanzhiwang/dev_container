@@ -11,7 +11,7 @@ RUN set -eux; \
 
 ############################## python package and tools
 RUN set -eux; \
-	pip install claude-tap; \
+	pip install uv black claude-tap; \
 	pip cache purge
 ############################## python package and tools
 
