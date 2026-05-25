@@ -8,6 +8,14 @@ RUN set -eux; \
 	echo "alias ll='ls -alFi --color=auto'" >> /etc/bash.bashrc
 ############################## tools
 
+
+############################## python package and tools
+RUN set -eux; \
+	pip install claude-tap; \
+	pip cache purge
+############################## python package and tools
+
+
 ############################## node
 ENV NODE_VERSION=24.15.0
 
@@ -80,6 +88,7 @@ RUN set -ex \
 RUN set -ex && npm install -g pnpm@10 && pnpm --version && npm cache clean --force
 ############################## node
 
+
 ############################## kt-connect
 ARG KTCTL_VERSION=0.3.7
 
@@ -104,3 +113,4 @@ RUN set -eux \
 	&& rm -rf ${TEMP_DIR} \
 	&& ktctl --version
 ############################## kt-connect
+
