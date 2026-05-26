@@ -122,5 +122,42 @@ RUN set -eux \
 	&& ktctl --version
 ############################## kt-connect
 
+
+############################## golang
+ENV GO_VERSION=1.26.3
+
+RUN set -eux; \
+	dpkgArch="$(dpkg --print-architecture)"; \
+	case "${dpkgArch##*-}" in \
+	amd64) \
+	GO_ARCH='amd64'; \
+	GO_SHA256='2b2cfc7148493da5e73981bffbf3353af381d5f93e789c82c79aff64962eb556'; \
+	;; \
+	arm64) \
+	GO_ARCH='arm64'; \
+	GO_SHA256='9d89a3ea57d141c2b22d70083f2c8459ba3890f2d9e818e7e933b75614936565'; \
+	;; \
+	i386) \
+	GO_ARCH='386'; \
+	GO_SHA256='0ef3626a149b5811c813838c62b7d6618d03ea36047b32c90b0e4851cc42b1fa'; \
+	;; \
+	armhf) \
+	GO_ARCH='armv6l'; \
+	GO_SHA256='d44133d4c66b1451a1e247da26db7716f76a081c0169a75e6c84e1871e394320'; \
+	;; \
+	*) echo "unsupported architecture for golang"; exit 1 ;; \
+	esac; \
+	# 下载对应的架构包
+	curl -fsSL -o go.tgz "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"; \
+	# 校验 SHA256 Checksum
+	echo "${GO_SHA256} *go.tgz" | sha256sum -c -; \
+	# 解压并清理
+	tar -C /usr/local -xzf go.tgz; \
+	rm go.tgz
+
+ENV PATH="/usr/local/go/bin:/home/${USERNAME}/go/bin:/root/go/bin:${PATH}"
+############################## golang
+
+
 USER $USERNAME
 WORKDIR /home/$USERNAME
