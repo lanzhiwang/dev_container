@@ -123,6 +123,31 @@ RUN set -eux \
 ############################## kt-connect
 
 
+############################## kubectl
+ARG KUBECTL_VERSION=v1.32.1
+
+RUN set -eux; \
+	dpkgArch="$(dpkg --print-architecture)"; \
+	case "${dpkgArch##*-}" in \
+	amd64) ARCH='amd64' ;; \
+	arm64) ARCH='arm64' ;; \
+	armhf) ARCH='arm' ;; \
+	ppc64el) ARCH='ppc64le' ;; \
+	s390x) ARCH='s390x' ;; \
+	*) echo "unsupported architecture for kubectl"; exit 1 ;; \
+	esac; \
+	# 下载二进制文件
+	curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl"; \
+	# 获取对应的 sha256 校验和并进行校验
+	checksum=$(curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl.sha256"); \
+	echo "${checksum}  /usr/local/bin/kubectl" | sha256sum -c -; \
+	# 赋予可执行权限
+	chmod +x /usr/local/bin/kubectl; \
+	# 基础功能验证
+	kubectl version --client
+############################## kubectl
+
+
 ############################## golang
 ENV GO_VERSION=1.26.3
 
