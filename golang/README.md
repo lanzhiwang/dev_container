@@ -173,6 +173,111 @@ CMD ["/usr/sbin/sshd", "-D"]
 
 ------------------------------------------------------------------------------------------------------
 
+Q: 假设你是一位精通 docker 的高级开发工程师, 现在我有如下 Dockerfile
+```
+FROM golang:1.24.1
+
+ARG USERNAME=lanzhiwang
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+ARG USER_PASSWORD=lanzhiwang
+
+############################## tools
+RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates tree iputils-ping vim wget curl iproute2 iptables lsof dnsutils sudo openssh-client openssh-server; \
+	rm -rf /var/lib/apt/lists/*; \
+	echo "alias ll='ls -alFi --color=auto'" >> /etc/bash.bashrc; \
+	groupadd --gid $USER_GID $USERNAME; \
+	useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash $USERNAME; \
+	echo "$USERNAME:$USER_PASSWORD" | chpasswd; \
+	echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME; \
+	chmod 0440 /etc/sudoers.d/$USERNAME; \
+	mkdir -p /run/sshd; \
+	chmod 0755 /run/sshd
+############################## tools
+
+EXPOSE 22
+
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
+CMD ["sudo", "/usr/sbin/sshd"]
+
+```
+我利用这个 Dockerfile 构建镜像之后, 我用如下命令启动容器
+```
+docker run -ti --rm \
+--entrypoint /usr/bin/env \
+-v /Users/huzhi/work/code/py_code/higress:/higress \
+-p 0.0.0.0:2022:22 \
+--name golang-ssh-server \
+lanzhiwang/golang:sha-1f4a07c bash
+```
+容器可以正常启动, 并且我也可以使用普通用户 ssh 登录到容器中, 但是如果我使用下面的命令启动容器
+```
+docker run -ti -d \
+-v /Users/huzhi/work/code/py_code/higress:/higress \
+-p 0.0.0.0:2022:22 \
+--name golang-ssh-server \
+lanzhiwang/golang:sha-1f4a07c
+```
+容器马上就会 exit, 并且我看到任何日志
+请问这是什么原因, 应该如何解决
+
+这是一个非常经典且容易遇到的 Docker 容器生命周期问题.
+
+### 原因分析
+
+容器立刻退出且没有日志, 主要是因为 `sshd` 默认是以守护进程(Daemon)模式在后台运行的, 而 Docker 容器的生命周期与它的主进程(PID 1)绑定.
+
+1. 默认行为:
+   在您的 Dockerfile 中, 默认启动命令是 `CMD ["sudo", "/usr/sbin/sshd"]`.
+   当容器启动时, `sudo` 启动了 `/usr/sbin/sshd`. 由于没有指定前台运行参数, `sshd` 启动后会立即 fork 到后台运行(脱离终端).
+   一旦 `sshd` 转入后台, 作为主进程的 `sudo` 认为任务已经执行完毕, 随即退出.
+   PID 1 进程退出, Docker 容器便会立刻停止运行. 因为它是正常退出的(exit code 0), 所以可能看起来没有任何报错日志.
+
+2. 为什么第一种方式可以运行:
+   在第一种方式中, 您通过 `--entrypoint /usr/bin/env` 配合 `bash` 覆盖了默认的 `CMD`, 并且使用了 `-ti`(交互式终端)参数.
+   此时容器的主进程(PID 1)是 `bash`. 只要您的 `bash` 终端没有关闭, 容器就会一直保持运行状态. 即使您在终端里手动启动了 `sshd`(它退到了后台), 由于 `bash` 依然在运行, 容器就不会退出, 因此您可以通过 SSH 登录.
+
+---
+
+### 解决方案
+
+解决这个问题非常简单, 只需要强制 `sshd` 在前台运行, 不让它退到后台.
+
+#### 1. 修改 Dockerfile 中的 `CMD`
+
+将 `sshd` 的启动参数加上 `-D`. `-D` 参数的作用是让 `sshd` 在前台运行(do not daemonize), 这样它就会作为容器的主进程一直存在, 容器就不会退出了.
+
+请将 Dockerfile 的最后一行修改为:
+
+```dockerfile
+# 加上 -D 参数, 确保 sshd 在前台运行
+CMD ["sudo", "/usr/sbin/sshd", "-D"]
+```
+
+#### 2. 重新构建并运行
+
+修改 Dockerfile 后, 重新构建您的镜像:
+
+```bash
+docker build -t lanzhiwang/golang:sha-1f4a07c .
+```
+
+然后, 使用您原先的后台运行命令启动容器:
+
+```bash
+docker run -d \
+-v /Users/huzhi/work/code/py_code/higress:/higress \
+-p 0.0.0.0:2022:22 \
+--name golang-ssh-server \
+lanzhiwang/golang:sha-1f4a07c
+```
+(注: 由于您使用了 `-d` 后台运行, 通常不需要再加 `-ti` 参数, 直接 `-d` 即可.)
+
+此时容器会一直保持 `Up` 状态, 并且您可以使用 `docker logs golang-ssh-server` 查看到 SSH 服务的连接日志.
 
 ------------------------------------------------------------------------------------------------------
 

@@ -25,4 +25,4 @@ EXPOSE 22
 USER $USERNAME
 WORKDIR /home/$USERNAME
 
-CMD ["sudo", "/usr/sbin/sshd"]
+CMD ["sudo", "/usr/sbin/sshd", "-D"]
