@@ -281,6 +281,118 @@ lanzhiwang/golang:sha-1f4a07c
 
 ------------------------------------------------------------------------------------------------------
 
+Q: 假设你是一位精通 docker 的高级开发工程师, 现在我有如下 Dockerfile
+```
+FROM golang:1.24.1
+
+ARG USERNAME=lanzhiwang
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+ARG USER_PASSWORD=lanzhiwang
+
+############################## tools
+RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates tree iputils-ping vim wget curl iproute2 iptables lsof dnsutils sudo openssh-client openssh-server; \
+	rm -rf /var/lib/apt/lists/*; \
+	echo "alias ll='ls -alFi --color=auto'" >> /etc/bash.bashrc; \
+	groupadd --gid $USER_GID $USERNAME; \
+	useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash $USERNAME; \
+	echo "$USERNAME:$USER_PASSWORD" | chpasswd; \
+	echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME; \
+	chmod 0440 /etc/sudoers.d/$USERNAME; \
+	mkdir -p /run/sshd; \
+	chmod 0755 /run/sshd
+############################## tools
+
+EXPOSE 22
+
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
+CMD ["sudo", "/usr/sbin/sshd", "-D"]
+
+```
+构建镜像之后, 我使用如下命令启动容器
+```
+docker run -d \
+-v /Users/huzhi/work/code/py_code/higress:/home/lanzhiwang/higress \
+-p 0.0.0.0:2022:22 \
+--name golang-ssh-server \
+lanzhiwang/golang:sha-5147790
+```
+我使用 lanzhiwang ssh 登录到容器之后, 发现 go 命令本身不能使用了, 如下所示
+```
+lanzhiwang@afa2aa3e6337:~$ go version
+-bash: go: command not found
+lanzhiwang@afa2aa3e6337:~$
+```
+请问这是什么原因, 应该如何解决
+
+这是一个在构建基于 SSH 的 Docker 开发环境时非常经典的"环境变量丢失"问题.
+
+### 原因分析
+
+在官方的 `golang:1.24.1` 镜像中, Go 的安装路径通常在 `/usr/local/go/bin`, 并且官方 Dockerfile 通过 `ENV PATH /usr/local/go/bin:$PATH` 将其写入了镜像中.
+
+然而, 通过 SSH 登录容器时, `sshd` 服务会为用户启动一个全新的"登录 Shell"(Login Shell).
+1. 登录 Shell 启动时会重置环境变量, 不会继承 Dockerfile 中通过 `ENV` 声明的环境变量.
+2. 因此, 您登录后的 PATH 变量变回了系统的默认初始值(不包含 `/usr/local/go/bin` 和 `/go/bin`), 导致系统找不到 `go` 命令.
+
+---
+
+### 解决方案
+
+在 Debian/Ubuntu(Go 官方镜像的底层系统)中, 解决此问题最标准、最优雅的方法是利用 `/etc/profile.d/` 目录.
+
+当任何用户通过 SSH 登录(启动登录 Shell)时, 系统会自动加载 `/etc/profile`, 而 `/etc/profile` 会自动读取并执行 `/etc/profile.d/` 目录下所有以 `.sh` 结尾的脚本. 我们只需要在这个目录下创建一个配置脚本, 将 Go 的环境变量写入其中.
+
+#### 修改后的 Dockerfile
+
+您只需要在原有的 `RUN` 步骤中, 加上对 `/etc/profile.d/golang.sh` 的配置即可. 修改后的 Dockerfile 如下:
+
+```dockerfile
+FROM golang:1.24.1
+
+ARG USERNAME=lanzhiwang
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+ARG USER_PASSWORD=lanzhiwang
+
+############################## tools
+RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates tree iputils-ping vim wget curl iproute2 iptables lsof dnsutils sudo openssh-client openssh-server; \
+	rm -rf /var/lib/apt/lists/*; \
+	echo "alias ll='ls -alFi --color=auto'" >> /etc/bash.bashrc; \
+	# [关键修改]: 将 Go 相关的环境变量写入全局 profile 中, 确保 SSH 登录时自动加载
+	echo 'export GOPATH=/go' > /etc/profile.d/golang.sh; \
+	echo 'export PATH=$PATH:/usr/local/go/bin:/go/bin' >> /etc/profile.d/golang.sh; \
+	groupadd --gid $USER_GID $USERNAME; \
+	useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash $USERNAME; \
+	echo "$USERNAME:$USER_PASSWORD" | chpasswd; \
+	echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME; \
+	chmod 0440 /etc/sudoers.d/$USERNAME; \
+	mkdir -p /run/sshd; \
+	chmod 0755 /run/sshd
+############################## tools
+
+EXPOSE 22
+
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
+CMD ["sudo", "/usr/sbin/sshd", "-D"]
+```
+
+### 补充说明
+
+1. `GOPATH=/go`: 官方 Go 镜像默认将 GOPATH 设为 `/go`. 我们在脚本中保留了这一设置, 并确保普通用户在登录后也能正确读写该目录(官方镜像默认已将 `/go` 目录权限设为 `777`, 所以普通用户无需担心权限问题).
+2. `PATH` 追加:
+   * `/usr/local/go/bin`: 这是 `go`、`gofmt` 等官方命令的所在路径.
+   * `/go/bin`: 这是您后续使用 `go install` 安装的第三方工具(如 `dlv`、`golangci-lint` 等)的默认存放路径.
+
+重新构建并启动容器后, 再次通过 SSH 登录 `lanzhiwang`, `go version` 命令即可正常使用.
 
 ------------------------------------------------------------------------------------------------------
 

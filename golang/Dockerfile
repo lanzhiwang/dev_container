@@ -5,6 +5,8 @@ ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 ARG USER_PASSWORD=lanzhiwang
 
+COPY golang.sh /etc/profile.d/golang.sh
+
 ############################## tools
 RUN set -eux; \
 	apt-get update; \
