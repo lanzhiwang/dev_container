@@ -179,4 +179,4 @@ ENV PATH="/usr/local/go/bin:/home/${USERNAME}/go/bin:/root/go/bin:${PATH}"
 ############################## golang
 
 # USER $USERNAME
-WORKDIR /home/$USERNAME
+# WORKDIR /home/$USERNAME
