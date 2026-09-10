@@ -19,7 +19,7 @@ RUN set -eux; \
 
 ############################## python package and tools
 RUN set -eux; \
-	pip install uv black claude-tap; \
+	pip install uv==0.11.27 black==26.5.1 claude-tap==0.1.126; \
 	pip cache purge
 ############################## python package and tools
 
