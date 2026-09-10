@@ -16,13 +16,11 @@ RUN set -eux; \
 	chmod 0440 /etc/sudoers.d/$USERNAME
 ############################## tools
 
-
 ############################## python package and tools
 RUN set -eux; \
 	pip install uv==0.11.27 black==26.5.1 claude-tap==0.1.126; \
 	pip cache purge
 ############################## python package and tools
-
 
 ############################## node
 ENV NODE_VERSION=24.15.0
@@ -96,7 +94,6 @@ RUN set -ex \
 RUN set -ex && npm install -g pnpm@10 && pnpm --version && npm cache clean --force
 ############################## node
 
-
 ############################## kt-connect
 ARG KTCTL_VERSION=0.3.7
 
@@ -122,7 +119,6 @@ RUN set -eux \
 	&& ktctl --version
 ############################## kt-connect
 
-
 ############################## kubectl
 ARG KUBECTL_VERSION=v1.32.1
 
@@ -146,7 +142,6 @@ RUN set -eux; \
 	# 基础功能验证
 	kubectl version --client
 ############################## kubectl
-
 
 ############################## golang
 ENV GO_VERSION=1.26.3
@@ -182,7 +177,6 @@ RUN set -eux; \
 
 ENV PATH="/usr/local/go/bin:/home/${USERNAME}/go/bin:/root/go/bin:${PATH}"
 ############################## golang
-
 
 # USER $USERNAME
 WORKDIR /home/$USERNAME
